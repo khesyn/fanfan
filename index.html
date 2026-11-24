@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#EFE7D3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="翻翻">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<title>翻翻 fanfan</title>
+<style>
+:root{--ink:#1F3A6B;--cream:#FAF6EA;--soft:#5B6F95;--line:#D5CCB4;--sab:env(safe-area-inset-bottom,0px);--sat:env(safe-area-inset-top,0px);--df:#1F3A6B;--dl:#FAF6EA;--secH:clamp(430px,calc(100vh - 300px),500px)}
+@supports(height:100svh){:root{--secH:clamp(430px,calc(100svh - 300px),500px)}}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;overflow:hidden;background:#EFE7D3}
+body{font-family:ui-rounded,"SF Pro Rounded",Nunito,"Hiragino Maru Gothic ProN","PingFang SC","Noto Sans SC",system-ui,sans-serif;color:var(--ink);-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.hide{display:none!important}
+#app{position:fixed;inset:0;overflow:hidden}
+#map{position:absolute;inset:0;z-index:0;background:#EFE7D3;transition:filter .45s}
+#map .leaflet-tile-pane{filter:sepia(.22) saturate(.78) hue-rotate(-6deg) brightness(1.04)}
+.leaflet-control-attribution{font-size:9.5px!important;background:#FFFBF1aa!important;color:#6b6350!important}
+.leaflet-container{font-family:inherit;background:#EFE7D3}
+.view-on #map{filter:blur(7px) saturate(.85)}
+#dim{position:absolute;inset:0;z-index:2;background:#F3EAD4;opacity:0;transition:opacity .45s;pointer-events:none}
+.view-on #dim{opacity:.45;pointer-events:auto}
+#ringsvg{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;transition:opacity .3s}
+.view-on #ringsvg{opacity:0}
+#top{position:absolute;left:16px;right:16px;top:calc(var(--sat) + 12px);z-index:8;display:flex;justify-content:space-between;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:700;color:var(--ink);border:1.5px solid var(--ink);border-radius:99px;padding:7px 14px;background:#FFFBF1ee;box-shadow:0 2px 8px #3a2c1422;position:relative;max-width:58vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill .bd{display:inline-block;min-width:16px;height:16px;border-radius:8px;background:var(--ink);color:var(--cream);font-size:10px;line-height:16px;text-align:center;padding:0 4px}
+/* 搜索面板 */
+#search{position:absolute;left:16px;right:16px;top:calc(var(--sat) + 60px);z-index:9;background:#FFFBF1f4;border-radius:18px;padding:14px;box-shadow:0 8px 24px #3a2c1440;max-height:calc(100% - var(--sat) - 90px);overflow:auto}
+.srow{display:flex;gap:8px}
+#q{flex:1;min-width:0;font:inherit;font-size:15px;padding:10px 12px;border:1.5px solid var(--ink);border-radius:12px;background:#fff;color:var(--ink);-webkit-user-select:text;user-select:text}
+.sbtn{background:var(--ink);color:var(--cream);border-radius:12px;padding:0 16px;font-weight:800;font-size:14px}
+.res{margin-top:8px;display:flex;flex-direction:column}
+.res button{text-align:left;padding:9px 6px;border-bottom:1px dashed var(--line);font-size:13.5px;line-height:1.35}
+.res button small{display:block;color:var(--soft);font-size:11.5px}
+.res .msg2{padding:8px 6px;color:var(--soft);font-size:12.5px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.chip{border:1.5px solid var(--ink);border-radius:99px;padding:6px 12px;font-size:13px;font-weight:700;background:#fff}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--cream)}
+.sl{font-size:12px;color:var(--soft);font-weight:700;margin-top:12px}
+.sfoot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:8px}
+.sfoot small{font-size:10.5px;color:var(--soft);line-height:1.4;flex:1}
+.link{font-size:14px;font-weight:700;text-decoration:underline;text-underline-offset:4px;padding:6px}
+/* 碗按钮 */
+#dial{position:absolute;left:50%;top:50%;width:180px;height:200px;margin:-100px 0 0 -90px;z-index:5;pointer-events:none;transition:opacity .3s}
+.view-on #dial,.view-on #msg{opacity:0;pointer-events:none!important}
+.view-on #msg>*{pointer-events:none!important}
+.bob{position:absolute;inset:0;animation:bob 3.6s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.shadow{position:absolute;left:56px;top:166px;width:68px;height:12px;border-radius:50%;background:#1F3A6B2e}
+.rpl{position:absolute;left:36px;top:46px;width:108px;height:108px;border-radius:50%;border:1.6px solid var(--dl2,#1F3A6B);animation:rip 4s ease-out infinite;opacity:0}
+.rpl:nth-child(2){animation-delay:1.3s}.rpl:nth-child(3){animation-delay:2.6s}
+@keyframes rip{0%{transform:scale(1);opacity:.45}100%{transform:scale(2.4);opacity:0}}
+.busy .rpl{display:none}
+#disc{position:absolute;left:36px;top:46px;width:108px;height:108px;border-radius:50%;background:var(--df);border:2.4px solid var(--df);pointer-events:auto;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 12px #3a2c1440;transition:background .3s,border-color .3s;touch-action:none}
+#disc:active{transform:scale(.97)}
+.bowl{width:58%;height:auto;fill:none;stroke:var(--dl);stroke-width:4.6;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.bw{transform-box:fill-box;transform-origin:50% 100%;animation:wob 8s ease-in-out infinite}
+@keyframes wob{0%,26%,100%{transform:rotate(0)}6%{transform:rotate(-7deg)}13%{transform:rotate(6deg)}20%{transform:rotate(-3deg)}}
+.dots{display:none;gap:8px}
+.dots i{width:10px;height:10px;border-radius:50%;background:var(--dl);animation:jp .9s ease-in-out infinite}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes jp{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(-9px);opacity:1}}
+.busy #disc{background:#FFFBF1;border-color:var(--dl)}
+.busy .dots{display:flex}
+.busy .bowl{display:none}
+#pop{position:absolute;inset:0;pointer-events:none}
+.bub{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;border:2px solid;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;box-shadow:0 5px 12px #3a2c1445;pointer-events:auto;transition:transform .12s}
+.bub.on{transform:scale(1.14);box-shadow:0 0 0 3px #fff,0 5px 12px #3a2c1445}
+#msg{position:absolute;left:0;right:0;top:calc(50% + 120px);z-index:5;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 24px;transition:opacity .3s;pointer-events:none}
+#msg>*{pointer-events:auto}
+.hint{display:inline-block;background:#FFFBF1ee;border-radius:99px;padding:7px 14px;font-size:13px;font-weight:700;box-shadow:0 2px 8px #3a2c1422}
+.et{font-size:14px;font-weight:800;background:#FFFBF1ee;border-radius:12px;padding:6px 12px 0}
+.eb{font-size:12.5px;color:var(--soft);background:#FFFBF1ee;border-radius:0 0 12px 12px;padding:2px 12px 8px;max-width:280px}
+#msg .link{background:#FFFBF1ee;border-radius:99px;margin-top:6px;padding:6px 14px}
+/* 打印收据 */
+#view{position:absolute;inset:0;z-index:6;pointer-events:none}
+#view>*{pointer-events:auto}
+#feed{position:absolute;left:0;right:0;top:0;bottom:calc(183px + var(--sab));overflow:hidden;-webkit-mask-image:linear-gradient(transparent calc(var(--sat) + 60px),#000 calc(var(--sat) + 190px));mask-image:linear-gradient(transparent calc(var(--sat) + 60px),#000 calc(var(--sat) + 190px));touch-action:none}
+#strip{position:absolute;left:50%;margin-left:-126px;width:252px;bottom:0;will-change:transform}
+.secw{filter:drop-shadow(0 8px 12px #2a1f0f55);transition:opacity .9s}
+.sec{position:relative;height:var(--secH);padding:22px 17px 70px;background:#FFFDF6;color:var(--ink);font-family:ui-monospace,"SF Mono","Courier New","PingFang SC",monospace;display:flex;flex-direction:column;overflow:hidden}
+.secw+.secw .sec{border-top:2px dashed #9FB0CC}
+.sec.zt{clip-path:var(--zt)}.sec.zb{clip-path:var(--zb)}.sec.zt.zb{clip-path:var(--zz)}
+.rn{text-align:center;font-family:ui-rounded,Nunito,"PingFang SC",sans-serif;font-size:18px;font-weight:800;line-height:1.25;word-break:break-word}
+.re{text-align:center;font-size:10.5px;color:var(--soft);margin-top:2px;min-height:13px;word-break:break-word}
+.rd2{border-top:1.5px dashed #9FB0CC;margin:9px 0;flex:none}
+.rph{flex:1;min-height:70px;border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.rph svg{width:70%;max-height:92%;height:auto}
+.ri{display:flex;gap:6px;align-items:baseline;font-size:11.5px;margin-top:5px;flex:none}
+.ri i{flex:1;border-bottom:1.5px dotted #B9C3D6;transform:translateY(-3px);min-width:8px}
+.ri span{flex:none}.ri b{font-weight:700;text-align:right;max-width:70%;word-break:break-word}
+.note{font-size:10.5px;color:var(--soft);margin-top:6px;text-align:center}
+.bc{height:22px;flex:none;background:repeating-linear-gradient(90deg,#1F3A6B 0 2px,#0000 2px 4px,#1F3A6B 4px 5px,#0000 5px 8px,#1F3A6B 8px 11px,#0000 11px 12px)}
+.rno{text-align:center;font-size:10px;color:var(--soft);margin-top:4px;letter-spacing:.1em;flex:none}
+.nva{position:absolute;left:50%;bottom:26px;width:34px;height:34px;margin-left:-17px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transform:scale(.5)}
+.torn .nva{opacity:1;pointer-events:auto;transform:scale(1);transition:opacity .4s .6s,transform .4s .6s}
+.torn .secw[style*="opacity: 0"] .nva{pointer-events:none}
+#printer{position:absolute;left:50%;margin-left:-157px;width:314px;height:80px;bottom:calc(144px + var(--sab));pointer-events:none;transition:opacity 1.6s,transform 1.6s}
+.torn #printer{opacity:0;transform:translateY(26px)}
+.led{animation:led 1s steps(2) infinite}
+@keyframes led{0%{opacity:1}50%{opacity:.15}}
+#view:not(.printing) .led{animation:none;opacity:.35}
+#acts{position:absolute;left:30px;right:30px;bottom:calc(34px + var(--sab));display:flex;flex-direction:column;align-items:center;transition:opacity .5s}
+.torn #acts,.printing #acts{opacity:0;pointer-events:none}
+.torn #acts{transition:opacity .3s}
+.pbtn{display:block;width:100%;padding:14px 8px;background:var(--ink);color:var(--cream);border-radius:14px;font-size:16px;font-weight:800}
+.pbtn:active{transform:scale(.985)}
+#acts .link{margin-top:8px}
+#toast{position:absolute;left:0;right:0;bottom:calc(120px + var(--sab));text-align:center;z-index:9;pointer-events:none}
+#toast span{display:inline-block;background:#FFFBF1ee;border-radius:99px;padding:7px 14px;font-size:12.5px;font-weight:700;box-shadow:0 2px 8px #3a2c1422}
+.ill{fill:none;stroke:#1F3A6B;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.ill .w{fill:#FFFDF6}.ill .rd{fill:#D8503A}.ill .gr{fill:#8DBB75}.ill .lg{fill:#BFE0A5}.ill .ck{fill:#F3D7A8}.ill .bl{fill:#DCE6F5}.ill .or{fill:#E9963F}.ill .yl{fill:#F2C14E}.ill .pk{fill:#F4A58A}.ill .bn{fill:#C98F4F}
+.ill .sh{fill:#1F3A6B;fill-opacity:.08;stroke:none}.ill .ns{stroke:none}.ill .th{stroke-width:1.5}.ill .st{opacity:.45}
+@media (prefers-reduced-motion:reduce){.bw,.rpl,.bob,.dots i,.led{animation:none}}
+</style>
+</head>
+<body>
+<div id="app">
+ <div id="map"></div>
+ <div id="dim"></div>
+ <svg id="ringsvg" aria-hidden="true"><circle id="ringc" cx="50%" cy="50%" r="150" fill="#1F3A6B" fill-opacity=".05" stroke="#1F3A6B" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="2 7" stroke-linecap="round"/></svg>
+
+ <div id="top">
+  <button class="pill" id="left"></button>
+  <button class="pill" id="lang" aria-label="Language"></button>
+ </div>
+
+ <div id="search" class="hide" role="dialog">
+  <div class="srow"><input id="q" type="search" enterkeyhint="search" autocomplete="off"><button class="sbtn" id="go"></button></div>
+  <div class="res" id="res"></div>
+  <button class="link" id="myloc"></button>
+  <div class="sl" id="fl"></div>
+  <div class="chips" id="chips"></div>
+  <div class="sfoot"><small id="note"></small><button class="link" id="done"></button></div>
+ </div>
+
+ <div id="dial">
+  <div class="bob">
+   <div class="shadow"></div>
+   <i class="rpl"></i><i class="rpl"></i><i class="rpl"></i>
+   <button id="disc" aria-haspopup="true">
+    <svg class="bowl" viewBox="0 0 170 126" aria-hidden="true"><g class="bw"><path d="M28 60H132C130 92 108 106 80 106C52 106 30 92 28 60Z"/><path d="M58 106v6h44v-6"/><path d="M44 60c10-10 18-10 26 0 8-10 18-10 26 0 8-10 14-8 20 0"/><path d="M98 52L130 14M110 56L142 22"/><path d="M62 44c-6-8 6-12 0-20M82 42c-6-8 6-12 0-20"/></g></svg>
+    <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+   </button>
+  </div>
+  <div id="pop"></div>
+ </div>
+ <div id="msg">
+  <span class="hint hide" id="hint" role="status"></span>
+  <span class="et hide" id="et" role="alert"></span>
+  <span class="eb hide" id="eb"></span>
+  <button class="link hide" id="retry"></button>
+ </div>
+
+ <div id="view" class="hide">
+  <div id="feed"><div id="strip"></div></div>
+  <svg id="printer" viewBox="0 0 314 80" aria-hidden="true"><g stroke="#1F3A6B" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="2" y="26" width="310" height="48" rx="16" fill="#FFFBF1"/><rect x="24" y="38" width="266" height="9" rx="4.5" fill="#0f1b33" stroke="none"/><circle cx="30" cy="62" r="3.2" fill="#1F3A6B" stroke="none"/><circle cx="44" cy="62" r="3.2" fill="#1F3A6B" fill-opacity=".4" stroke="none"/></g><circle class="led" cx="290" cy="62" r="4.2" fill="#E0452F"/></svg>
+  <div id="acts"><button class="pbtn" id="ok"></button><button class="link" id="nx"></button></div>
+  <div id="toast"></div>
+ </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const S={lang:'zh',tier:'all',cats:new Set(),gps:null,cc:'sg',placeName:null,pool:null,poolKey:null,seen:new Set(),busy:false,token:0,secs:[],k:0,printing:false,torn:false,anim:null,map:null,prog:false,hint:null,err:null,view:false};
+const guess=()=>(navigator.language||'').startsWith('zh')?'zh':'en';
+try{S.lang=localStorage.getItem('fan:lang')||guess()}catch(e){S.lang=guess()}
+try{const c=JSON.parse(localStorage.getItem('fan:cats')||'[]');c.forEach(x=>S.cats.add(x))}catch(e){}
+const reduced=()=>window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ================= 文案 ================= */
+const T={
+zh:{near:'附近',mapc:'地图中心',ph:'搜索地点，比如 武吉士、Chatuchak',go:'搜索',back:'← 地图',myloc:'回到我的位置',done:'完成',fl:'想吃什么（可多选）',
+ note:'资料来自 OpenStreetMap；价位是按店型估的，仅供参考。',hint:'长按选预算',searching:'翻翻附近的小巷子…',retry:'再试一次',
+ geoE:'地名服务暂时连不上',noRes:'没找到这个地方',popHint:'滑到想要的档位，松手',ok:'就这家了',nx:'今天不想吃这个',
+ e2:['地图伺服器在偷懒','等一下再试看看。'],e3:['附近的都被你翻完了','点碗，重新来一轮。'],e4:['附近没有符合的店','长按碗换一档预算，或在搜索里换个筛选。'],
+ rCuisine:'料理',rTry:'推荐',rAddr:'地址',rPrice:'价位',rDist:'路程',rHours:'营业',unl:'未标注',classic:'（经典）',court:'食阁',queue:'看排队最长的那一摊',
+ noCuisine:'地图没写他卖什么，去了就知道啦',seeMap:'在地图上看',pp:'每人约 ',walk:n=>`走路约 ${n} 分钟`,car:n=>`车程约 ${n} 分钟`,from:n=>`离${n}`,
+ until:u=>`到 ${u}`,all24:'24 小时营业',closed:'今天休息',and:'以上',nav:'导航'},
+en:{near:'Nearby',mapc:'Map center',ph:'Search a place, e.g. Bugis, Chatuchak',go:'Search',back:'← Map',myloc:'Back to my location',done:'Done',fl:'What are you craving? (multi)',
+ note:'Data from OpenStreetMap. Prices are estimated from the type of place.',hint:'Hold to pick a budget',searching:'Poking around the side streets…',retry:'Try again',
+ geoE:'Place search is unavailable',noRes:'No such place found',popHint:'Slide to a budget, then let go',ok:"Let's go!",nx:'Not feeling this one',
+ e2:['The map server is slacking','Give it a moment and try again.'],e3:["You've seen everything nearby",'Tap the bowl to start another round.'],e4:['Nothing matches nearby','Hold the bowl to change budget, or change the filters.'],
+ rCuisine:'Cuisine',rTry:'Try',rAddr:'Address',rPrice:'Price',rDist:'Distance',rHours:'Hours',unl:'Not listed',classic:' (classic)',court:'Food court',queue:'Pick the stall with the longest queue',
+ noCuisine:"The map doesn't say what they sell. Go find out!",seeMap:'See on map',pp:'About ',walk:n=>`About ${n} min on foot`,car:n=>`About ${n} min by car`,from:n=>`From ${n}`,
+ until:u=>`Until ${u}`,all24:'Open 24 hours',closed:'Closed today',and:'+',nav:'Navigate'}
+};
+const L_=()=>T[S.lang];
+const CATS=[['tea','奶茶','Milk tea'],['coffee','咖啡','Coffee'],['snack','小吃','Snacks'],['dessert','甜品','Dessert'],['veg','素食','Veggie'],['jp','日式','Japanese'],['kr','韩式','Korean'],['tw','台式','Taiwanese'],['cn','中餐','Chinese'],['local','本地','Local']];
+
+/* ================= 国家 / 货币 / 档位 ================= */
+const BANDS={
+ cn:{pre:'¥',suf:'',div:1,c:[10,30,80]},hk:{pre:'HK$',suf:'',div:1,c:[30,70,150]},tw:{pre:'NT$',suf:'',div:1,c:[80,200,500]},
+ sg:{pre:'S$',suf:'',div:1,c:[3,8,15]},my:{pre:'RM',suf:'',div:1,c:[5,12,25]},id:{pre:'Rp',suf:'k',div:1000,c:[15000,40000,90000]},
+ th:{pre:'฿',suf:'',div:1,c:[40,100,250]},kr:{pre:'₩',suf:'k',div:1000,c:[6000,10000,25000]},jp:{pre:'JP¥',suf:'',div:1,c:[500,1000,2500]},
+ vn:{pre:'',suf:'k₫',div:1000,c:[30000,70000,150000]},us:{pre:'US$',suf:'',div:1,c:[3,8,15]}};
+function boxCC(a,o){
+ const B=[['sg',1.15,1.48,103.6,104.1],['hk',22.15,22.57,113.8,114.45],['tw',21.8,25.4,119.9,122.1],['kr',33,38.7,124.5,131.9],['jp',24,46,122.9,146],['vn',8.4,23.4,102,109.6],['th',5.6,20.5,97.3,105.7],['my',.8,7.5,99.5,119.5],['id',-11,6,95,141],['cn',18,53.6,73.5,135]];
+ for(const [c,a1,a2,o1,o2] of B)if(a>=a1&&a<=a2&&o>=o1&&o<=o2)return c;
+ return 'us';
+}
+function bandText(cc,tier,withUnit){
+ const b=BANDS[cc]||BANDS.us,[a,m,h]=b.c,v=n=>{const x=n/b.div;return x>=1000?x.toLocaleString('en-US'):x},f=n=>b.pre+v(n)+b.suf;
+ if(tier==='low')return `${b.pre}${v(a)}–${v(m)}${b.suf}`;
+ if(tier==='mid')return `${b.pre}${v(m)}–${v(h)}${b.suf}`;
+ return withUnit&&S.lang==='zh'?`${f(h)} 以上`:`${f(h)}+`;
+}
+const tierOf=sc=>sc<30?'low':sc<55?'mid':'high';
+const TIERS={all:{f:'#1F3A6B',l:'#FAF6EA'},low:{f:'#BFE3C4',l:'#2E6B3F'},mid:{f:'#F7CC77',l:'#6B4220'},high:{f:'#F8BCD0',l:'#B23A6C'}};
+
+/* ================= 菜系、菜名、分类 ================= */
+const K={
+ thai:{z:'泰国菜',e:'Thai',d:['冬阴功汤','Tom Yum Goong']},vietnamese:{z:'越南菜',e:'Vietnamese',d:['牛肉河粉','Phở bò']},
+ indonesian:{z:'印尼菜',e:'Indonesian',d:['仁当牛肉 / 印尼炒饭','Beef rendang / Nasi goreng']},malaysian:{z:'马来西亚菜',e:'Malaysian',d:['椰浆饭','Nasi lemak']},
+ malay:{z:'马来菜',e:'Malay',d:['椰浆饭','Nasi lemak']},singaporean:{z:'新加坡菜',e:'Singaporean',d:['叻沙','Laksa']},hainanese:{z:'海南菜',e:'Hainanese',d:['海南鸡饭','Hainanese chicken rice']},
+ hokkien:{z:'福建菜',e:'Hokkien',d:['福建虾面','Hokkien mee']},cantonese:{z:'粤菜',e:'Cantonese',d:['烧腊饭','Roast meat rice']},chinese:{z:'中餐',e:'Chinese',d:['招牌小炒','House wok dish']},
+ dim_sum:{z:'点心',e:'Dim sum',d:['虾饺','Har gow']},noodle:{z:'面食',e:'Noodles',d:['招牌汤面','House noodle soup']},seafood:{z:'海鲜',e:'Seafood',d:['当日现捕海鲜','Catch of the day']},
+ chicken:{z:'鸡肉',e:'Chicken',d:['招牌鸡','House chicken']},satay:{z:'沙爹',e:'Satay',d:['炭烤沙爹串','Charcoal satay']},barbecue:{z:'烧烤',e:'BBQ',d:['炭烤招牌串','Grilled skewers']},
+ grill:{z:'烧烤',e:'Grill',d:['炭烤招牌','Grill special']},indian:{z:'印度菜',e:'Indian',d:['咖喱配烤饼','Curry with roti / naan']},filipino:{z:'菲律宾菜',e:'Filipino',d:['阿多波','Adobo']},
+ burmese:{z:'缅甸菜',e:'Burmese',d:['鱼汤米线','Mohinga']},lao:{z:'老挝菜',e:'Lao',d:['拉布肉沫沙拉','Larb']},cambodian:{z:'柬埔寨菜',e:'Cambodian',d:['阿莫克鱼','Fish amok']},
+ khmer:{z:'高棉菜',e:'Khmer',d:['阿莫克鱼','Fish amok']},japanese:{z:'日料',e:'Japanese',d:['拉面或定食','Ramen or teishoku']},korean:{z:'韩餐',e:'Korean',d:['烤肉配泡菜汤','Grilled meat & kimchi stew']},
+ taiwanese:{z:'台式',e:'Taiwanese',d:['卤肉饭','Braised pork rice']},curry:{z:'咖喱',e:'Curry',d:['招牌咖喱','House curry']},rice:{z:'饭食',e:'Rice',d:['招牌饭','House rice plate']},
+ soup:{z:'汤品',e:'Soup',d:['招牌汤','House soup']},street_food:{z:'街头小吃',e:'Street food',d:['摊位招牌','Stall specialty']},regional:{z:'地方菜',e:'Regional',d:['当地家常菜','Local home-style dish']},
+ vegetarian:{z:'素食',e:'Vegetarian',d:['招牌素菜','House veggie dish']},vegan:{z:'纯素',e:'Vegan',d:['招牌素菜','House veggie dish']},pizza:{z:'披萨',e:'Pizza',d:['现烤披萨','Fresh-baked pizza']},
+ burger:{z:'汉堡',e:'Burgers',d:['招牌汉堡','House burger']},western:{z:'西餐',e:'Western',d:['牛排或意面','Steak or pasta']},italian:{z:'意大利菜',e:'Italian',d:['手工意面','Handmade pasta']},
+ sushi:{z:'寿司',e:'Sushi',d:['主厨寿司套餐','Chef’s sushi set']},ramen:{z:'拉面',e:'Ramen',d:['招牌拉面','House ramen']},
+ bubble_tea:{z:'奶茶',e:'Milk tea',d:null},coffee_shop:{z:'咖啡',e:'Coffee',d:null},dessert:{z:'甜品',e:'Dessert',d:null},ice_cream:{z:'冰淇淋',e:'Ice cream',d:null},cake:{z:'蛋糕',e:'Cake',d:null}
+};
+const DISH=[
+ {id:'chickenrice',re:/chicken rice|hainanese chicken|鸡饭|海南鸡/i,z:'海南鸡饭',e:'Hainanese chicken rice'},{id:'laksa',re:/laksa|叻沙/i,z:'叻沙',e:'Laksa'},
+ {id:'nasilemak',re:/nasi lemak|椰浆饭/i,z:'椰浆饭',e:'Nasi lemak'},{id:'bkt',re:/bak kut teh|bakkutteh|肉骨茶/i,z:'肉骨茶',e:'Bak kut teh'},
+ {id:'ckt',re:/char kway teow|kway teow|炒粿条|炒贵刁/i,z:'炒粿条',e:'Char kway teow'},{id:'hokkien',re:/hokkien (mee|prawn)|福建(虾)?面|虾面/i,z:'福建虾面',e:'Hokkien mee'},
+ {id:'rojak',re:/rojak|罗惹/i,z:'罗惹',e:'Rojak'},{id:'satay',re:/satay|\bsate\b|沙爹/i,z:'沙爹',e:'Satay'},{id:'prata',re:/prata|roti canai|煎饼/i,z:'印度煎饼',e:'Roti prata'},
+ {id:'pho',re:/\bpho\b|phở|河粉/i,z:'越南河粉',e:'Phở'},{id:'tomyum',re:/tom ?yum|冬阴功/i,z:'冬阴功',e:'Tom yum'},{id:'padthai',re:/pad thai|泰式炒河粉/i,z:'泰式炒河粉',e:'Pad thai'},
+ {id:'wanton',re:/wan ?ton|云吞/i,z:'云吞面',e:'Wanton mee'},{id:'rendang',re:/rendang|仁当/i,z:'仁当',e:'Rendang'}
+];
+const DM=Object.fromEntries(DISH.map(d=>[d.id,d]));
+function dishOf(t,cu){const s=[t.name,t['name:en'],t['name:zh'],cu.join(' ').replace(/_/g,' ')].filter(Boolean).join(' ');const d=DISH.find(x=>x.re.test(s));return d?d.id:null}
+const LOCAL={sg:['singaporean','malay','peranakan','indian','hokkien','hainanese','local','regional','street_food'],my:['malaysian','malay','mamak','indian','peranakan','local','regional','street_food'],th:['thai','isan','regional','street_food'],
+ vn:['vietnamese','regional','street_food'],id:['indonesian','padang','javanese','balinese','sundanese','regional','street_food'],jp:['japanese','sushi','ramen','udon','izakaya','tempura','yakitori'],
+ kr:['korean','korean_bbq'],tw:['taiwanese','regional','street_food'],hk:['cantonese','hong_kong','cha_chaan_teng','dim_sum'],cn:['chinese','sichuan','hunan','shanghainese','cantonese','regional','dim_sum']};
+function catsOf(t,cu,cc){
+ const s=[],nm=(t.name||'')+' '+(t['name:en']||'')+' '+(t['name:zh']||''),has=(...a)=>a.some(x=>cu.includes(x)),sh=t.shop||'',am=t.amenity||'';
+ const tea=has('bubble_tea','milk_tea','tea')||sh==='tea'||/奶茶|bubble tea|boba|珍珠|茶饮|tea\b/i.test(nm);
+ if(tea)s.push('tea');
+ if(!tea&&(has('coffee_shop','coffee')||sh==='coffee'||am==='cafe'||/coffee|咖啡|kopi|café|cafe/i.test(nm)))s.push('coffee');
+ if(has('street_food','snack','local_snack','hawker')||am==='food_court'||am==='fast_food'||/小吃|snack|hawker|stall/i.test(nm))s.push('snack');
+ if(has('dessert','ice_cream','cake','pastry','waffle','crepe','dessert_shop')||['bakery','pastry','confectionery','ice_cream'].includes(sh)||am==='ice_cream'||/甜品|糖水|dessert|ice cream|gelato|cake|bakery|pastry/i.test(nm))s.push('dessert');
+ if(['yes','only'].includes(t['diet:vegetarian'])||['yes','only'].includes(t['diet:vegan'])||has('vegetarian','vegan')||/素食|vegetarian|vegan/i.test(nm))s.push('veg');
+ if(has('japanese','sushi','ramen','udon','izakaya','tempura','yakitori','teppanyaki','tonkatsu','donburi')||/日本|寿司|拉面|ramen|sushi|izakaya|居酒屋/i.test(nm))s.push('jp');
+ if(has('korean','korean_bbq')||/korea|韩式|韓|한식/i.test(nm))s.push('kr');
+ if(has('taiwanese')||/台式|台湾|台灣|taiwan/i.test(nm))s.push('tw');
+ if(has('chinese','cantonese','sichuan','hunan','shanghainese','teochew','hokkien','hainanese','dim_sum','hotpot')||/中餐|中华|粤|川菜|湘菜|chinese/i.test(nm))s.push('cn');
+ const loc=LOCAL[cc]||['regional','local','street_food'];
+ if(cu.some(x=>loc.includes(x)))s.push('local');
+ return s;
+}
+const CHAIN=/mcdonald|kfc|burger king|starbucks|pizza hut|domino|subway|texas chicken|jollibee|lotteria|7-?eleven|family ?mart|dunkin|a&w|marrybrown|secret recipe|old ?town white|coffee bean|tim hortons|mos burger|yoshinoya|sushi ?(tei|express)|the pizza company|swensen|sizzler|ya kun|toast box|tealive|chatime|gong cha|mixue|蜜雪|麦当劳|肯德基|星巴克|必胜客|汉堡王/i;
+
+/* ================= 名称与地址（不翻译中英文，非中英文字符才翻译） ================= */
+const nonCE=s=>/[\u0E00-\u0E7F\uAC00-\uD7AF\u1100-\u11FF\u3040-\u30FF\u0E80-\u0EFF\u1780-\u17FF\u1000-\u109F\u0600-\u06FF\u0400-\u04FF]/.test(s||'');
+const hasCJK=s=>/[\u4e00-\u9fff]/.test(s||'');const hasLat=s=>/[A-Za-z]/.test(s||'');
+function namesOf(t){
+ const main=t.name;
+ const zh=t['name:zh']||t['name:zh-Hans']||t['name:zh-Hant'],en=t['name:en'];
+ if(nonCE(main)){
+  const pref=S.lang==='zh'?(zh||en):(en||zh);
+  return{main,second:pref&&pref!==main?pref:null,needMT:!pref};
+ }
+ let second=null;
+ if(hasCJK(main)&&!hasLat(main)){if(en&&en!==main)second=en}
+ else if(hasLat(main)&&!hasCJK(main)){if(zh&&zh!==main)second=zh}
+ return{main,second,needMT:false};
+}
+function addrFromTags(t){
+ if(t['addr:full'])return t['addr:full'];
+ const hn=t['addr:housenumber'],st=t['addr:street']||t['addr:place'];
+ let s=[hn,st].filter(Boolean).join(' ');
+ if(t['addr:unit'])s+=(s?' ':'')+'#'+String(t['addr:unit']).replace(/^#/,'');
+ const ct=t['addr:suburb']||t['addr:city'];
+ if(s&&ct)s+=', '+ct;
+ return s||'';
+}
+const mem={};
+async function translate(text,lang){
+ const key=lang+':'+text;if(mem[key])return mem[key];
+ try{const c=localStorage.getItem('fan:tr:'+key);if(c){mem[key]=c;return c}}catch(e){}
+ try{
+  const tgt=lang==='zh'?'zh-CN':'en-GB';
+  const j=await(await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0,200))}&langpair=Autodetect|${tgt}`)).json();
+  const r=j.responseData&&j.responseData.translatedText;
+  if(r&&Number(j.responseStatus)===200&&!/MYMEMORY|INVALID|QUERY LENGTH/i.test(r)){mem[key]=r;try{localStorage.setItem('fan:tr:'+key,r)}catch(e){}return r}
+ }catch(e){}
+ return null;
+}
+async function reverse(lat,lon,lang){
+ const key='rv:'+lang+':'+lat.toFixed(5)+','+lon.toFixed(5);if(mem[key])return mem[key];
+ try{
+  const j=await(await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&accept-language=${lang==='zh'?'zh,en':'en'}&lat=${lat}&lon=${lon}`)).json();
+  const a=j.address||{};
+  const parts=[[a.house_number,a.road].filter(Boolean).join(' '),a.suburb||a.neighbourhood||a.city_district,a.city||a.town||a.village].filter(Boolean);
+  const r=parts.slice(0,3).join(', ');if(r){mem[key]=r;return r}
+ }catch(e){}
+ return '';
+}
+function initAddr(p){let a=p.parent?`${p.parent}${p.unit?' '+p.unit:''}`:addrFromTags(p.t);return a&&nonCE(a)?'':a}
+async function resolveAddr(p,lang){
+ let s=p.parent?`${p.parent}${p.unit?' '+p.unit:''}`:addrFromTags(p.t);
+ if(!s)s=await reverse(p.la,p.lo,lang);
+ if(s&&nonCE(s)){const tr=await translate(s,lang);if(tr)s=tr}
+ return s||'';
+}
+
+/* ================= 营业时间 ================= */
+const D={Mo:0,Tu:1,We:2,Th:3,Fr:4,Sa:5,Su:6};
+const HR=/^((?:(?:Mo|Tu|We|Th|Fr|Sa|Su)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?,?\s*)+)?\s*(off|closed|(?:\d{1,2}:\d{2}-\d{1,2}:\d{2}(?:\s*,\s*)?)+)$/;
+function days(s){const set=new Set();for(const p of s.split(',')){const m=p.match(/^(Mo|Tu|We|Th|Fr|Sa|Su)(?:-(Mo|Tu|We|Th|Fr|Sa|Su))?$/);if(!m)return null;const a=D[m[1]],b=m[2]?D[m[2]]:a;for(let i=a;;i=(i+1)%7){set.add(i);if(i===b)break}}return set}
+function openState(h,now=new Date()){
+ if(!h)return{s:null};
+ if(h.trim()==='24/7')return{s:true,until:null};
+ const dow=(now.getDay()+6)%7,prev=(dow+6)%7,mins=now.getHours()*60+now.getMinutes();
+ let ok=false,until=null,parsed=false;
+ for(const raw of h.split(';')){
+  const r=raw.trim();if(!r)continue;const m=r.match(HR);if(!m)continue;
+  const ds=m[1]?days(m[1].replace(/\s/g,'')):new Set([0,1,2,3,4,5,6]);if(!ds)continue;parsed=true;
+  if(/^(off|closed)$/.test(m[2])){if(ds.has(dow)){ok=false;until=null}continue}
+  for(const t of m[2].split(',')){
+   const x=t.trim().match(/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/);if(!x)continue;
+   const a=x[1]*60+ +x[2],b=x[3]*60+ +x[4],end=t.trim().split('-')[1];
+   if(a<b){if(ds.has(dow)&&mins>=a&&mins<b){ok=true;until=end}}
+   else{if(ds.has(dow)&&mins>=a){ok=true;until=end}if(ds.has(prev)&&mins<b){ok=true;until=end}}
+  }
+ }
+ return parsed?{s:ok,until}:{s:null};
+}
+function todayHours(h,now=new Date()){
+ if(!h)return null;if(h.trim()==='24/7')return['24h'];
+ const dow=(now.getDay()+6)%7;let r=null;
+ for(const raw of h.split(';')){
+  const m=raw.trim().match(HR);if(!m)continue;
+  const ds=m[1]?days(m[1].replace(/\s/g,'')):new Set([0,1,2,3,4,5,6]);if(!ds||!ds.has(dow))continue;
+  r=/^(off|closed)$/.test(m[2])?[]:m[2].split(',').map(x=>x.trim().replace(/\b(\d):/g,'0$1:').replace('-',' - '));
+ }
+ return r;
+}
+const pad=t=>t.replace(/^(\d):/,'0$1:');
+
+/* ================= 数据：OpenStreetMap ================= */
+const EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+async function overpass(lat,lon,r){
+ const q=`[out:json][timeout:30];(nwr(around:${r},${lat},${lon})["amenity"~"^(restaurant|fast_food|food_court|cafe|ice_cream)$"]["name"];nwr(around:${r},${lat},${lon})["shop"~"^(bakery|pastry|confectionery|tea|coffee|ice_cream)$"]["name"];);out center tags 900;`;
+ let err;
+ for(const u of EP){try{const res=await fetch(u,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}});if(!res.ok)throw new Error(res.status);return(await res.json()).elements}catch(e){err=e}}
+ throw err;
+}
+const km=(a,b,c,d)=>{const R=6371,p=Math.PI/180,x=Math.sin((c-a)*p/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin((d-b)*p/2)**2;return 2*R*Math.asin(Math.sqrt(x))};
+function priceOf(t,cu){
+ const am=t.amenity,sh=t.shop;
+ let s=am==='food_court'?12:am==='fast_food'?28:am==='cafe'?36:am==='ice_cream'?22:(['bakery','pastry','confectionery'].includes(sh))?24:sh==='tea'?22:sh==='coffee'?34:50;
+ if(cu.includes('street_food'))s=Math.min(s,18);
+ if(cu.some(c=>['noodle','rice','soup','satay'].includes(c)))s=Math.min(s,34);
+ if(t.takeaway==='only')s=Math.min(s,25);
+ const adj={seafood:8,japanese:10,korean:6,western:8,thai:-5,vietnamese:-6,indonesian:-5,malay:-5,malaysian:-5,indian:-4,burmese:-5};
+ for(const c of cu)if(adj[c]&&s>=40)s+=adj[c];
+ if(t.wikidata||t.wikipedia)s+=4;
+ if(t.reservation==='required'||t.reservation==='yes')s=Math.max(s,78);
+ if(t.stars||cu.some(c=>['fine_dining','steak_house','french','italian','sushi','teppanyaki'].includes(c)))s=Math.max(s,86);
+ return Math.max(0,Math.min(100,s));
+}
+function clean(els,lat,lon,cc){
+ const items=[],courts=[],seen=new Set();
+ for(const el of els){
+  const t=el.tags||{},la=el.lat!=null?el.lat:(el.center&&el.center.lat),lo=el.lon!=null?el.lon:(el.center&&el.center.lon);
+  if(la==null||!t.name)continue;
+  if(t.brand||t['brand:wikidata']||CHAIN.test(t.name)||CHAIN.test(t.brand||''))continue;
+  const key=t.name+Math.round(la*1e3)+Math.round(lo*1e3);if(seen.has(key))continue;seen.add(key);
+  const cu=(t.cuisine||'').split(/[;,]/).map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const o={id:el.type+el.id,t,la,lo,cu,kc:cu.find(c=>K[c]),dishId:dishOf(t,cu),price:priceOf(t,cu),dist:km(lat,lon,la,lo),court:t.amenity==='food_court',cats:catsOf(t,cu,cc)};
+  if(o.court)courts.push(o);items.push(o);
+ }
+ for(const o of items){
+  if(o.court)continue;let best=null,bd=.07;
+  for(const c of courts){const d=km(o.la,o.lo,c.la,c.lo);if(d<bd){bd=d;best=c}}
+  if(best){o.parent=best.t.name;best.hasStalls=true;const u=o.t['addr:unit'];if(u)o.unit=/^#/.test(u)?u:/^\d{1,2}-\d{1,3}\w?$/.test(u)?'#'+u:u}
+ }
+ return items;
+}
+function score(p){
+ const t=p.t,yr=new Date().getFullYear();let s=0;
+ if(p.kc||p.dishId)s+=2;else if(p.cu.length)s+=1;
+ if(t.opening_hours)s+=1;
+ const y=parseInt((t.start_date||'').slice(0,4));if(y&&y<yr-1)s+=(yr-y>=5?2:1);
+ if(t.wikidata||t.wikipedia)s+=3;if(t.outdoor_seating==='yes')s+=1;
+ if(t.website||t.phone||t['contact:phone']||t['contact:website'])s+=1;if(t.description)s+=1;
+ return s;
+}
+function pick(list){const w=list.map(p=>Math.exp(score(p)/2));let r=Math.random()*w.reduce((a,b)=>a+b,0);for(let i=0;i<list.length;i++){r-=w[i];if(r<=0)return list[i]}return list[list.length-1]}
+
+/* ================= 彩色手绘插画（按菜、按类型） ================= */
+const SH='<ellipse class="sh" cx="80" cy="108" rx="58" ry="7"/>',STM='<path class="st" d="M60 40c-6-8 6-12 0-20M80 38c-6-8 6-12 0-20M100 40c-6-8 6-12 0-20"/>';
+const cuc=(x,y)=>`<circle class="lg" cx="${x}" cy="${y}" r="6"/><circle class="ns" style="fill:#E3F2D2" cx="${x}" cy="${y}" r="2.4"/>`;
+const BW='<path class="bl" d="M26 58H134C132 92 110 108 80 108C50 108 28 92 26 58Z"/><path class="bl" d="M58 108v6h44v-6"/>';
+const PT='<ellipse class="w" cx="80" cy="84" rx="68" ry="24"/><ellipse cx="80" cy="84" rx="56" ry="18" style="stroke:#C9D8EE;stroke-width:3"/>';
+const SWH='style="stroke:#fff;stroke-width:3"';
+const DC={
+chickenrice:SH+PT+'<path class="w" d="M30 84c2-22 18-34 38-34s32 12 34 34c-10 7-62 7-72 0z"/><path class="th" style="opacity:.55" d="M50 62l4 2M66 56l4 2M82 62l4 2M60 72l4 2M76 70l4 2"/><path class="ck" d="M92 74c8-9 24-8 30 1-6 9-22 9-30-1z"/><path class="ck" d="M98 80c8-9 24-8 30 1-6 9-22 9-30-1z"/><path class="ck" d="M104 86c8-9 24-8 30 1-6 9-22 9-30-1z"/>'+cuc(46,98)+cuc(62,101)+cuc(78,100)+STM+'<ellipse class="w" cx="138" cy="44" rx="13" ry="5"/><ellipse class="rd ns" cx="138" cy="43" rx="8.5" ry="2.8"/>',
+laksa:SH+BW+'<ellipse class="or" cx="80" cy="58" rx="54" ry="11"/><path style="stroke:#F6E3B0;stroke-width:3" d="M42 58c8-6 14 4 22-2s14 4 22-2 12 3 18 0"/><path class="pk" d="M50 56c6-10 18-8 20 0-6 6-14 6-20 0z"/><path class="pk" d="M92 56c6-10 18-8 20 0-6 6-14 6-20 0z"/><ellipse class="w" cx="80" cy="54" rx="9" ry="6"/><circle class="yl ns" cx="80" cy="54" r="3.4"/><path class="gr" d="M62 48l4-7 4 7z"/>'+STM,
+nasilemak:'<ellipse class="sh" cx="80" cy="102" rx="64" ry="8"/><path class="gr" d="M10 82c12-34 128-34 140 0-12 30-128 30-140 0z"/><path class="th" style="opacity:.5" d="M22 82h116"/><path class="w" d="M48 82c2-22 14-32 32-32s30 10 32 32c-8 5-56 5-64 0z"/><path class="w" d="M104 80a13 9 0 0 1 26 0z"/><circle class="yl ns" cx="117" cy="74" r="4"/>'+cuc(34,86)+cuc(36,98)+'<path class="rd" d="M82 84c4-5 12-5 14 0s-6 8-14 0z"/><path style="stroke:#A9703A" d="M60 96c4-3 8-3 12 0M70 101c4-3 8-3 12 0"/><circle class="ck ns" cx="96" cy="96" r="3"/><circle class="ck ns" cx="104" cy="99" r="3"/><circle class="ck ns" cx="90" cy="100" r="3"/>'+STM,
+bkt:SH+BW+'<ellipse cx="80" cy="58" rx="54" ry="11" style="fill:#8B5A2B"/><rect x="48" y="48" width="34" height="9" rx="4.5" style="fill:#F3E3C8" transform="rotate(-12 65 52)"/><rect x="76" y="52" width="38" height="9" rx="4.5" style="fill:#F3E3C8" transform="rotate(10 95 56)"/><path class="w" d="M104 52c0-9 13-9 13 0s-3 6-6 6-7-1-7-6z"/><path class="gr" d="M60 48l4-7 4 7z"/>'+STM,
+ckt:SH+PT+'<path style="stroke:#C98F4F;stroke-width:6" d="M32 82c8-18 14 6 22-8s14 8 22-8 14 8 22-6 14 6 22-4"/><path class="pk" d="M92 62c10-8 22 0 18 12-4 6-12 6-14 2z"/><path class="yl" d="M48 72c4-4 12-4 14 0s-6 6-14 0z"/><path style="stroke:#8DBB75" d="M66 96l8-4M82 98l8-5M98 96l8-4"/>',
+hokkien:SH+PT+'<path style="stroke:#E9C98A;stroke-width:6" d="M34 80c8-14 14 4 22-8s14 8 22-6 14 6 22-6"/><path class="pk" d="M88 62c10-8 22 0 18 12-4 6-12 6-14 2z"/><path class="pk" d="M104 74c10-8 22 0 18 12-4 6-12 6-14 2z"/><path class="lg" d="M28 98a14 14 0 0 1 28 0z"/><path d="M42 98V86"/><circle class="rd ns" cx="74" cy="92" r="3.5"/>',
+rojak:SH+PT+'<rect class="yl" x="40" y="62" width="20" height="14" rx="4"/><rect class="lg" x="64" y="56" width="20" height="14" rx="4"/><rect class="bn" x="88" y="62" width="20" height="14" rx="4"/><rect class="w" x="54" y="74" width="20" height="14" rx="4"/><rect class="yl" x="78" y="74" width="20" height="14" rx="4"/><path style="stroke:#7A3F2B;stroke-width:3" d="M44 72c10 6 20-6 30 0s20-6 32 0"/><circle class="ck ns" cx="56" cy="52" r="2.5"/><circle class="ck ns" cx="76" cy="48" r="2.5"/><circle class="ck ns" cx="98" cy="52" r="2.5"/>',
+prata:'<ellipse class="sh" cx="80" cy="108" rx="62" ry="7"/><ellipse cx="58" cy="88" rx="46" ry="14" style="fill:#F0D08A"/><ellipse cx="58" cy="78" rx="46" ry="14" style="fill:#F0D08A"/><path class="th" style="stroke:#D9A25B" d="M26 78c14 6 28 8 44 4M40 70c10 4 22 5 34 3"/><path class="bl" d="M108 62h38c-1 14-8 22-19 22s-18-8-19-22z"/><path class="or" d="M110 64h34c-1 4-3 6-6 7h-22c-3-1-5-3-6-7z"/>',
+pho:SH+BW+'<ellipse cx="80" cy="58" rx="54" ry="11" style="fill:#E8C98F"/><path '+SWH+' d="M44 58c8-5 14 3 22-1s14 3 22-1"/><ellipse class="pk" cx="62" cy="55" rx="13" ry="5"/><ellipse class="pk" cx="90" cy="55" rx="13" ry="5"/><path class="gr" d="M104 52c6-12 18-12 22-6-6 8-16 10-22 6z"/><path d="M98 48L132 12M110 52L144 18"/>'+STM,
+tomyum:SH+BW+'<ellipse cx="80" cy="58" rx="54" ry="11" style="fill:#E2693A"/><path class="pk" d="M52 56c8-12 24-8 24 4-8 6-18 4-24-4z"/><path class="pk" d="M86 58c8-12 24-8 24 4-8 6-18 4-24-4z"/><path class="ck" d="M112 54a10 8 0 0 1 20 0z"/><path class="gr" d="M64 46l4-7 4 7z"/>'+STM,
+padthai:SH+PT+'<path style="stroke:#E9A14B;stroke-width:6" d="M38 84c6-18 14 4 22-14s14 12 22-12 14 12 22-6"/><path class="lg" d="M108 98a16 16 0 0 1 28 0z"/><path class="pk" d="M94 66c10-8 22 0 18 12z"/><circle class="ck ns" cx="56" cy="96" r="3"/><circle class="ck ns" cx="70" cy="100" r="3"/><circle class="ck ns" cx="84" cy="96" r="3"/>',
+wanton:SH+BW+'<ellipse cx="80" cy="58" rx="54" ry="11" style="fill:#F6E3B0"/><path class="w" d="M40 56c4-12 18-12 22 0-4 6-18 6-22 0z"/><path class="w" d="M66 52c4-12 18-12 22 0-4 6-18 6-22 0z"/><path class="w" d="M92 56c4-12 18-12 22 0-4 6-18 6-22 0z"/><path class="gr" d="M118 52l8-6-2 8z"/><path d="M100 46L134 12M112 50L146 18"/>',
+rendang:SH+PT+'<path class="w" d="M34 84c2-18 16-24 30-24s26 6 28 24c-8 5-50 5-58 0z"/><rect x="88" y="66" width="20" height="16" rx="6" style="fill:#7A3F2B"/><rect x="108" y="72" width="20" height="16" rx="6" style="fill:#7A3F2B"/><rect x="96" y="82" width="20" height="14" rx="6" style="fill:#7A3F2B"/><path class="gr" d="M120 58c6-10 16-10 20-4-6 8-14 10-20 4z"/>',
+bowl:SH+BW+'<ellipse cx="80" cy="58" rx="54" ry="11" style="fill:#F1D9A0"/><path '+SWH+' d="M42 58c8-6 14 4 22-2s14 4 22-2 12 3 18 0"/><path d="M98 50L132 14M110 54L144 22"/>'+STM,
+rice:SH+BW+'<path class="w" d="M30 58c2-22 16-30 50-30s48 8 50 30c-14 6-86 6-100 0z"/><path class="th" style="opacity:.55" d="M62 38l4 2M80 32l4 2M98 40l4 2M72 46l4 2M90 48l4 2"/>'+STM,
+skewer:SH+'<path d="M14 40H146M14 66H146M14 92H146"/><rect x="36" y="30" width="22" height="20" rx="6" style="fill:#B5733A"/><rect x="68" y="30" width="22" height="20" rx="6" style="fill:#B5733A"/><rect x="100" y="30" width="22" height="20" rx="6" style="fill:#B5733A"/><rect x="26" y="56" width="22" height="20" rx="6" style="fill:#B5733A"/><rect x="58" y="56" width="22" height="20" rx="6" style="fill:#B5733A"/><rect x="90" y="56" width="22" height="20" rx="6" style="fill:#B5733A"/><rect x="36" y="82" width="22" height="20" rx="6" style="fill:#B5733A"/><rect x="68" y="82" width="22" height="20" rx="6" style="fill:#B5733A"/><path class="th" style="stroke:#6B3E1B" d="M42 36l8 8M74 36l8 8M106 36l8 8M32 62l8 8M64 62l8 8"/>',
+fish:SH+'<path d="M26 60C50 30 94 30 116 60C94 90 50 90 26 60Z" style="fill:#9CB8DA"/><path class="or" d="M116 60L142 40V80Z"/><circle class="w" cx="52" cy="54" r="4"/><circle class="ns" cx="52" cy="54" r="1.6" style="fill:#1F3A6B"/><path d="M72 44q8 16 0 32M90 46q6 14 0 28"/>',
+curry:SH+'<ellipse class="w" cx="66" cy="80" rx="52" ry="22"/><path class="or" d="M36 78c0-18 60-18 60 0c0 8-60 8-60 0z"/><circle class="ck" cx="122" cy="50" r="24"/><path d="M112 44h.1M126 40h.1M120 56h.1M132 54h.1"/>',
+dumpling:SH+'<path d="M24 70h112v30c0 6-8 10-14 10H38c-6 0-14-4-14-10z" style="fill:#D9BE8C"/><path d="M24 86h112M24 98h112"/><path class="w" d="M30 70c2-14 14-20 24-14 10-6 22 0 24 14z"/><path class="w" d="M82 70c2-14 14-20 24-14 10-6 22 0 24 14z"/><path class="th" d="M44 60q2 6 0 10M60 60q-2 6 0 10M96 60q2 6 0 10M112 60q-2 6 0 10"/>',
+leaf:SH+'<path class="gr" d="M80 100C30 90 30 40 90 24C120 50 118 90 80 100Z"/><path d="M80 100C82 70 90 52 90 24"/><path d="M82 78l-16-12M86 62l16-10"/>',
+court:SH+'<path class="bl" d="M24 40h28v14c-7 7-21 7-28 0z"/><path class="w" d="M52 40h28v14c-7 7-21 7-28 0z"/><path class="bl" d="M80 40h28v14c-7 7-21 7-28 0z"/><path class="w" d="M108 40h28v14c-7 7-21 7-28 0z"/><path d="M30 60v44M130 60v44M24 104h112"/><path class="ck" d="M52 88h56v16H52z"/><circle class="rd" cx="46" cy="96" r="4"/><circle class="yl" cx="114" cy="96" r="4"/>',
+plate:'<ellipse class="sh" cx="80" cy="106" rx="50" ry="7"/><ellipse class="w" cx="80" cy="76" rx="52" ry="26"/><ellipse cx="80" cy="76" rx="40" ry="18" style="stroke:#C9D8EE;stroke-width:3"/><path d="M18 36v30M13 36v12M23 36v12M18 66v26"/><path d="M142 36c-9 7-9 28 0 34v22"/>',
+tea:SH+'<path d="M84 40L94 10h16"/><path class="w" d="M50 36h60l-6 66c-1 6-5 8-10 8H66c-5 0-9-2-10-8z"/><path d="M53 58h54l-3.5 44c-1 5-4 8-9 8H66c-5 0-8-3-9-8z" style="fill:#E3B98A"/><ellipse class="w" cx="80" cy="36" rx="31" ry="6"/><circle cx="68" cy="100" r="4" style="fill:#5a3a22"/><circle cx="80" cy="102" r="4" style="fill:#5a3a22"/><circle cx="92" cy="100" r="4" style="fill:#5a3a22"/><circle cx="74" cy="92" r="4" style="fill:#5a3a22"/><circle cx="87" cy="93" r="4" style="fill:#5a3a22"/>',
+coffee:SH+'<path class="w" d="M42 52h66v26c0 16-12 28-28 28h-10c-16 0-28-12-28-28z"/><path d="M108 60h8c10 0 10 20 0 20h-10"/><ellipse cx="75" cy="53" rx="33" ry="5" style="fill:#7A4B2A"/><ellipse class="w" cx="75" cy="108" rx="50" ry="6"/>'+'<path class="st" d="M62 38c-6-8 6-12 0-20M82 36c-6-8 6-12 0-20"/>',
+dessert:SH+'<ellipse class="w" cx="80" cy="102" rx="62" ry="9"/><path class="w" d="M26 96V62l92-22v56z"/><path class="pk" d="M26 62l92-22v10L26 72z"/><path class="yl" d="M26 80l92-22v8L26 88z"/><circle class="rd" cx="96" cy="36" r="7"/><path class="gr" d="M96 30l4-8"/>'
+};
+DC.satay=DC.skewer;
+const GM={bowl:['thai','vietnamese','singaporean','hokkien','burmese','japanese','korean','noodle','soup','street_food','ramen','taiwanese'],rice:['rice','hainanese','chicken','cantonese','filipino'],skewer:['satay','barbecue','grill'],fish:['seafood','cambodian','khmer'],curry:['curry','indian','indonesian','malaysian','malay'],dumpling:['dim_sum','chinese'],leaf:['vegetarian','vegan','lao']};
+const BGS=['#DCE7F4','#DDEBDD','#F3DFD8','#E4E1F0'];
+function artOf(p){
+ let g='plate';
+ if(p.court)g='court';
+ else if(p.dishId&&DC[p.dishId])g=p.dishId;
+ else if(p.cats&&p.cats.includes('tea'))g='tea';
+ else if(p.cats&&p.cats.includes('coffee')&&!p.kc)g='coffee';
+ else if(p.cats&&p.cats.includes('dessert')&&!p.kc)g='dessert';
+ else for(const x in GM)if(GM[x].includes(p.kc))g=x;
+ let h=0;for(const c of g)h=(h*31+c.charCodeAt(0))%97;
+ return{svg:`<svg class="ill" viewBox="0 0 160 120" aria-hidden="true">${DC[g]}</svg>`,bg:BGS[h%4]};
+}
+
+/* ================= 地图与首页 ================= */
+function center(){
+ if(S.map){const c=S.map.getCenter();return{lat:c.lat,lon:c.lng}}
+ return S.gps||{lat:1.3521,lon:103.8198};
+}
+const isNearby=()=>{const c=center();return !!S.gps&&km(c.lat,c.lon,S.gps.lat,S.gps.lon)<.3};
+function updateRing(){
+ if(!S.map)return;
+ const c=S.map.getCenter(),z=S.map.getZoom(),mpp=156543.03392*Math.cos(c.lat*Math.PI/180)/Math.pow(2,z);
+ $('#ringc').setAttribute('r',Math.max(20,3000/mpp));
+}
+function shortName(){return S.placeName||L_().mapc}
+function refreshLeft(){
+ const l=L_(),b=$('#left');b.textContent='';
+ if(S.view){b.textContent=l.back;return}
+ const pin=document.createElementNS('http://www.w3.org/2000/svg','svg');pin.setAttribute('width','12');pin.setAttribute('height','14');pin.setAttribute('viewBox','0 0 24 24');pin.setAttribute('fill','none');pin.setAttribute('stroke','#1F3A6B');pin.setAttribute('stroke-width','2.4');pin.setAttribute('stroke-linecap','round');pin.setAttribute('stroke-linejoin','round');
+ pin.innerHTML='<path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>';
+ b.append(pin,document.createTextNode(isNearby()?l.near:shortName()));
+ if(S.cats.size){const n=document.createElement('span');n.className='bd';n.textContent=S.cats.size;b.append(n)}
+}
+function initMap(){
+ if(typeof L==='undefined')return;
+ const m=L.map('map',{zoomControl:false,attributionControl:true,center:[1.3521,103.8198],zoom:13,minZoom:10,maxZoom:18,zoomSnap:.5});
+ m.attributionControl.setPrefix(false);
+ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OpenStreetMap contributors © CARTO'}).addTo(m);
+ m.on('move zoom',updateRing);
+ m.on('dragstart',()=>{S.moved=true;closeSearch()});
+ m.on('moveend',()=>{if(!S.prog)S.placeName=null;S.prog=false;refreshLeft()});
+ S.map=m;updateRing();
+}
+function flyTo(lat,lon,zoom,name){S.prog=true;S.placeName=name||null;if(S.map)S.map.setView([lat,lon],zoom||13);refreshLeft()}
+function locate(){
+ if(!navigator.geolocation)return;
+ navigator.geolocation.getCurrentPosition(p=>{S.gps={lat:p.coords.latitude,lon:p.coords.longitude};if(S.map&&!S.moved)flyTo(S.gps.lat,S.gps.lon,13,null);refreshLeft()},()=>{},{enableHighAccuracy:true,timeout:12000,maximumAge:120000});
+}
+
+/* ---- 碗按钮：颜色 = 预算档位 ---- */
+function applyTier(){
+ const t=TIERS[S.tier],r=document.documentElement.style;
+ r.setProperty('--df',t.f);r.setProperty('--dl',t.l);r.setProperty('--dl2',S.tier==='all'?'#1F3A6B':t.l);
+}
+function ccNow(){const c=center();return boxCC(c.lat,c.lon)}
+async function refineCC(c){
+ try{
+  const j=await(await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=3&lat=${c.lat}&lon=${c.lon}`)).json();
+  const cc=((j.address&&j.address.country_code)||'').toLowerCase();
+  if(BANDS[cc]&&cc!==S.cc){S.cc=cc;if(S.view)rerender()}
+ }catch(e){}
+}
+function openPop(){
+ closePop();S.cc=ccNow();
+ const pop=$('#pop');pop.innerHTML='';
+ const defs=[['all',-160,null],['low',-115,'low'],['mid',-65,'mid'],['high',-20,'high']],R=120;
+ for(const [k,ang,band] of defs){
+  const b=document.createElement('button');b.className='bub';b.dataset.t=k;
+  const t=TIERS[k];b.style.cssText=`left:${90+R*Math.cos(ang*Math.PI/180)}px;top:${100+R*Math.sin(ang*Math.PI/180)}px;background:${t.f};color:${k==='all'?t.l:t.l};border-color:${k==='all'?t.f:t.l}`;
+  if(k==='all'){b.innerHTML='<svg width="34" height="18" viewBox="0 0 40 20" fill="none" stroke="#FAF6EA" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-label="∞"><path d="M20 10C15 3 5 3 5 10s10 7 15 0 15-7 15 0-10 7-15 0z"/></svg>'}
+  else b.textContent=bandText(S.cc,band,false);
+  b.addEventListener('click',()=>{chooseTier(k)});
+  pop.append(b);
+ }
+ S.pop=true;showHint('popHint');
+}
+function closePop(){if(!S.pop)return;S.pop=false;$('#pop').innerHTML='';if(S.hint==='popHint')showHint(null)}
+function chooseTier(k){S.tier=k;applyTier();closePop();try{localStorage.setItem('fan:hintdone','1')}catch(e){}}
+
+/* 提示 / 错误 */
+function renderMsg(){
+ const l=L_(),h=$('#hint'),et=$('#et'),eb=$('#eb'),rt=$('#retry');
+ [h,et,eb,rt].forEach(x=>x.classList.add('hide'));
+ if(S.hint){h.textContent=l[S.hint];h.classList.remove('hide')}
+ else if(S.err){et.textContent=l[S.err][0];eb.textContent=l[S.err][1];rt.textContent=l.retry;[et,eb,rt].forEach(x=>x.classList.remove('hide'))}
+}
+function showHint(k){S.hint=k;if(k)S.err=null;renderMsg()}
+function showErr(k){S.hint=null;S.err=k;setBusy(false);renderMsg()}
+function setBusy(b){S.busy=b;$('#dial').classList.toggle('busy',b)}
+function firstHint(){let d=false;try{d=localStorage.getItem('fan:hintdone')==='1'}catch(e){}if(!d&&!S.busy)showHint('hint')}
+
+/* ================= 搜索面板 ================= */
+function buildChips(){
+ const c=$('#chips');c.innerHTML='';
+ for(const [id,z,e] of CATS){
+  const b=document.createElement('button');b.className='chip';b.dataset.id=id;b.setAttribute('aria-pressed',S.cats.has(id));b.textContent=S.lang==='zh'?z:e;
+  b.onclick=()=>{S.cats.has(id)?S.cats.delete(id):S.cats.add(id);b.setAttribute('aria-pressed',S.cats.has(id));try{localStorage.setItem('fan:cats',JSON.stringify([...S.cats]))}catch(x){}refreshLeft()};
+  c.append(b);
+ }
+}
+function openSearch(){$('#search').classList.remove('hide');$('#q').focus()}
+function closeSearch(){$('#search').classList.add('hide');$('#q').blur()}
+async function doSearch(){
+ const q=$('#q').value.trim(),res=$('#res');if(!q)return;res.innerHTML='';
+ const msg=t=>{const d=document.createElement('div');d.className='msg2';d.textContent=t;res.append(d)};
+ try{
+  const j=await(await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=${S.lang==='zh'?'zh,en':'en'}&countrycodes=cn,hk,tw,sg,my,id,th,kr,jp,vn&q=${encodeURIComponent(q)}`)).json();
+  if(!j.length)return msg(L_().noRes);
+  for(const r of j){
+   const parts=(r.display_name||'').split(',').map(s=>s.trim());
+   const b=document.createElement('button');b.textContent=parts[0]||q;
+   const sm=document.createElement('small');sm.textContent=parts.slice(1,4).join(', ');b.append(sm);
+   b.onclick=()=>{S.moved=true;flyTo(+r.lat,+r.lon,14,(parts[0]||q).slice(0,14));res.innerHTML='';closeSearch()};
+   res.append(b);
+  }
+ }catch(e){msg(L_().geoE)}
+}
+
+/* ================= 找店 ================= */
+async function load(c){
+ const key=c.lat.toFixed(2)+','+c.lon.toFixed(2);
+ if(S.pool&&S.poolKey===key)return;
+ const ck='fan5:'+key;
+ try{const x=JSON.parse(localStorage.getItem(ck)||'null');if(x&&Date.now()-x.ts<18e5){S.pool=x.pool;S.poolKey=key;S.seen.clear();return}}catch(e){}
+ let pool=[];
+ for(const r of [3000,5000]){pool=clean(await overpass(c.lat,c.lon,r),c.lat,c.lon,S.cc);if(pool.length>=10)break}
+ S.pool=pool;S.poolKey=key;S.seen.clear();
+ try{localStorage.setItem(ck,JSON.stringify({ts:Date.now(),pool}))}catch(e){}
+}
+function candidates(nearby){
+ const meal=['restaurant','fast_food','food_court'];
+ const base=S.pool.filter(p=>{
+  if(S.seen.has(p.id)||(p.court&&p.hasStalls))return false;
+  if(S.cats.size){if(!p.cats.some(c=>S.cats.has(c)))return false}else if(!meal.includes(p.t.amenity))return false;
+  if(S.tier!=='all'&&tierOf(p.price)!==S.tier)return false;
+  return true;
+ }).map(p=>({p,st:openState(p.t.opening_hours)}));
+ if(!nearby)return base;
+ const open=base.filter(x=>x.st.s===true);
+ return open.length?open:base.filter(x=>x.st.s===null);
+}
+async function find(){
+ if(S.busy){S.token++;setBusy(false);showHint(null);firstHint();return}
+ closePop();closeSearch();
+ const tok=++S.token;setBusy(true);showHint('searching');
+ const c=center();S.cc=ccNow();S.nearby=isNearby();S.fromName=S.placeName;refineCC(c);
+ try{await load(c)}catch(e){if(tok===S.token)showErr('e2');return}
+ if(tok!==S.token)return;
+ const list=candidates(S.nearby);
+ if(!list.length){const had=S.seen.size>0;S.seen.clear();return showErr(had?'e3':'e4')}
+ const ch=pick(list.map(x=>x.p)),it=list.find(x=>x.p===ch);
+ S.seen.add(ch.id);
+ enterView();addSection(ch,it.st);
+}
+function nextOne(){
+ if(S.printing||S.torn)return;
+ const list=candidates(S.nearby);
+ if(!list.length){S.seen.clear();toast(L_().e3[0]);return}
+ const ch=pick(list.map(x=>x.p)),it=list.find(x=>x.p===ch);S.seen.add(ch.id);
+ if(S.k>0)setK(0,false);
+ addSection(ch,it.st);
+}
+function toast(t){const e=$('#toast');e.innerHTML='';const s=document.createElement('span');s.textContent=t;e.append(s);setTimeout(()=>{if(e.firstChild===s)e.innerHTML=''},2600)}
+
+/* ================= 收据视图 ================= */
+function zigStrings(){
+ const n=21,top=[],bot=[];
+ for(let i=0;i<=n;i++)top.push(`${i*12}px ${i%2?'0px':'6px'}`);
+ for(let i=n;i>=0;i--)bot.push(`${i*12}px ${i%2?'100%':'calc(100% - 6px)'}`);
+ const r=document.documentElement.style,sq='252px 100%,0 100%',sqt='0 0,252px 0';
+ r.setProperty('--zt',`polygon(${top.join(',')},${sq})`);
+ r.setProperty('--zb',`polygon(${sqt},${bot.join(',')})`);
+ r.setProperty('--zz',`polygon(${top.join(',')},${bot.join(',')})`);
+}
+function enterView(){
+ S.view=true;S.secs=[];S.k=0;S.torn=false;$('#strip').innerHTML='';
+ $('#app').classList.add('view-on');$('#view').classList.remove('hide','torn');
+ setBusy(false);showHint(null);refreshLeft();
+}
+function backToMap(){
+ if(!S.view)return;
+ S.view=false;S.secs=[];S.k=0;S.torn=false;S.printing=false;if(S.anim){try{S.anim.cancel()}catch(e){}}S.anim=null;
+ $('#strip').innerHTML='';$('#strip').style.transform='';$('#app').classList.remove('view-on');$('#view').classList.add('hide');$('#view').classList.remove('torn','printing');
+ $('#toast').innerHTML='';refreshLeft();firstHint();
+}
+const secH=()=>{const e=$('#strip .sec');return e?e.offsetHeight:480};
+function setK(k,anim){S.k=k;const s=$('#strip');s.style.transition=anim?'transform .35s ease':'none';s.style.transform=`translateY(${k*secH()}px)`}
+function distText(p){
+ const l=L_(),d=p.dist,base=d<=1.2?l.walk(Math.max(1,Math.round(d*1000/80))):l.car(Math.max(2,Math.round(d/20*60)));
+ if(S.nearby)return base;
+ const nm=S.fromName||l.mapc;
+ return S.lang==='zh'?`${l.from(nm)}${base}`:`${l.from(nm)}: ${base.charAt(0).toLowerCase()+base.slice(1)}`;
+}
+function hoursText(p,st){
+ const l=L_();
+ if(S.nearby){return st.s===true?(st.until?l.until(pad(st.until)):l.all24):l.unl}
+ const hrs=todayHours(p.t.opening_hours);
+ if(!hrs)return l.unl;if(hrs[0]==='24h')return l.all24;if(!hrs.length)return l.closed;
+ return hrs.join(S.lang==='zh'?'，':', ');
+}
+function rowsOf(sd){
+ const {p,st}=sd,l=L_(),zh=S.lang==='zh',k=p.kc&&K[p.kc],ds=p.dishId&&DM[p.dishId],r=[];
+ const catLabel=()=>{const c=CATS.find(x=>p.cats&&p.cats.includes(x[0])&&['tea','coffee','dessert'].includes(x[0]));return c?(zh?c[1]:c[2]):null};
+ let note=null;
+ if(p.court){r.push([l.rCuisine,l.court],[l.rTry,l.queue])}
+ else if(ds){r.push([l.rCuisine,k?(zh?k.z:k.e):(zh?ds.z:ds.e)]);if(k)r.push([l.rTry,zh?ds.z:ds.e])}
+ else if(k){r.push([l.rCuisine,zh?k.z:k.e]);if(k.d)r.push([l.rTry,(zh?k.d[0]:k.d[1])+l.classic])}
+ else if(catLabel())r.push([l.rCuisine,catLabel()]);
+ else if(p.cu.length){const c=p.cu[0].replace(/_/g,' ');r.push([l.rCuisine,c.charAt(0).toUpperCase()+c.slice(1)])}
+ else{r.push([l.rCuisine,l.unl]);note=l.noCuisine}
+ r.push([l.rAddr,sd.addr||l.seeMap]);
+ r.push([l.rPrice,l.pp+bandText(S.cc2||S.cc,tierOf(p.price),true)]);
+ r.push([l.rDist,distText(p)]);
+ r.push([l.rHours,hoursText(p,st)]);
+ return{rows:r,note};
+}
+function buildSec(sd,idx){
+ const nm=sd.names,{rows,note}=rowsOf(sd),art=artOf(sd.p);
+ const w=document.createElement('div');w.className='secw';w.dataset.i=sd.no;
+ const s=document.createElement('div');s.className='sec'+(idx===0?' zt':'');
+ const h=document.createElement('div');h.className='rn';h.textContent=nm.main;
+ const e=document.createElement('div');e.className='re';e.textContent=nm.second||'';
+ const d1=document.createElement('div');d1.className='rd2';
+ const ph=document.createElement('div');ph.className='rph';ph.style.background=art.bg;ph.innerHTML=art.svg;
+ const d2=document.createElement('div');d2.className='rd2';
+ s.append(h,e,d1,ph,d2);
+ rows.forEach(([a,b],i)=>{const r=document.createElement('div');r.className='ri';const x=document.createElement('span');x.textContent=a;const f=document.createElement('i');const v=document.createElement('b');v.textContent=b;if(a===L_().rAddr)v.className='av';r.append(x,f,v);s.append(r)});
+ if(note){const n=document.createElement('div');n.className='note';n.textContent=note;s.append(n)}
+ const d3=document.createElement('div');d3.className='rd2';
+ const bc=document.createElement('div');bc.className='bc';
+ const no=document.createElement('div');no.className='rno';no.textContent='NO. '+String(sd.no).padStart(3,'0');
+ const nv=document.createElement('button');nv.className='nva';nv.setAttribute('aria-label',L_().nav);
+ nv.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L21 3l-8.5 18-2-7.5z" fill="#FAF6EA"/></svg>';
+ nv.onclick=()=>openNav(sd.p.la,sd.p.lo);
+ s.append(d3,bc,no,nv);w.append(s);return w;
+}
+function addSection(p,st){
+ const sd={p,st,no:S.secs.length+1,names:namesOf(p.t),addr:initAddr(p)};
+ S.secs.push(sd);
+ const strip=$('#strip'),el=buildSec(sd,S.secs.length-1);
+ strip.style.transition='none';strip.append(el);
+ const H=secH();strip.style.transform=`translateY(${H}px)`;void strip.offsetHeight;
+ S.k=0;S.printing=true;$('#view').classList.add('printing');
+ const done=()=>{strip.style.transform='translateY(0px)';S.printing=false;$('#view').classList.remove('printing')};
+ if(reduced()){done()}
+ else{
+  S.anim=strip.animate([{transform:`translateY(${H}px)`},{transform:'translateY(0px)'}],{duration:1200,easing:`steps(${Math.max(8,Math.round(H/30))},end)`,fill:'forwards'});
+  S.anim.onfinish=()=>{done();try{S.anim.cancel()}catch(e){}};
+ }
+ enrich(sd);
+}
+async function enrich(sd){
+ const lang=S.lang,upd=()=>{const w=document.querySelector(`#strip .secw[data-i="${sd.no}"]`);if(!w)return;
+  const re=w.querySelector('.re');if(re)re.textContent=sd.names.second||'';const av=w.querySelector('.av');if(av)av.textContent=sd.addr||L_().seeMap};
+ if(sd.names.needMT&&!sd.names.second){const tr=await translate(sd.names.main,lang);if(tr&&tr!==sd.names.main){sd.names.second=tr;upd()}}
+ if(!sd.addr||nonCE(sd.addr)){const a=await resolveAddr(sd.p,lang);if(a){sd.addr=a;upd()}}
+}
+function rerender(){
+ const strip=$('#strip'),t=strip.style.transform;strip.innerHTML='';
+ S.secs.forEach((sd,i)=>{sd.names=namesOf(sd.p.t);sd.addr=initAddr(sd.p);strip.append(buildSec(sd,i));enrich(sd)});
+ strip.style.transform=t;
+ if(S.torn)tearApply(S.tornIdx);
+}
+function tearApply(idx){
+ document.querySelectorAll('#strip .secw').forEach((w,i)=>{const s=w.firstElementChild;if(i===idx){s.classList.add('zt','zb')}else{w.style.opacity='0'}});
+}
+function tear(){
+ if(S.torn||S.printing)return;
+ S.torn=true;S.tornIdx=S.secs.length-1-S.k;$('#view').classList.add('torn');tearApply(S.tornIdx);
+}
+function openNav(lat,lon){
+ const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+ if(ios){
+  let hidden=false;const onv=()=>{if(document.hidden)hidden=true};document.addEventListener('visibilitychange',onv);
+  location.href=`comgooglemaps://?daddr=${lat},${lon}`;
+  setTimeout(()=>{document.removeEventListener('visibilitychange',onv);if(!hidden)location.href=`https://maps.apple.com/?daddr=${lat},${lon}`},1500);
+ }else window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`,'_blank','noopener');
+}
+/* 往下拉，看历史 */
+(function(){
+ const feed=$('#feed');let g=null;
+ feed.addEventListener('pointerdown',e=>{
+  if(S.printing){if(S.anim)try{S.anim.finish()}catch(x){}return}
+  if(S.torn){if(e.target.id==='feed')backToMap();return}
+  if(S.secs.length<2){if(e.target.id==='feed')backToMap();return}
+  g={y:e.clientY,k:S.k,h:secH(),dy:0};try{feed.setPointerCapture(e.pointerId)}catch(x){}$('#strip').style.transition='none';
+ });
+ feed.addEventListener('pointermove',e=>{if(!g)return;g.dy=e.clientY-g.y;const max=(S.secs.length-1)*g.h;$('#strip').style.transform=`translateY(${Math.max(0,Math.min(max,g.k*g.h+g.dy))}px)`});
+ const end=e=>{if(!g)return;const moved=Math.abs(g.dy)>6,max=(S.secs.length-1)*g.h,off=Math.max(0,Math.min(max,g.k*g.h+g.dy)),k=Math.round(off/g.h);g=null;setK(k,true);if(!moved&&e&&e.target&&e.target.id==='feed')backToMap()};
+ feed.addEventListener('pointerup',end);feed.addEventListener('pointercancel',end);
+})();
+
+/* ================= 事件 ================= */
+(function(){
+ const disc=$('#disc');let lp=null,long=false,down=false,mode=false;
+ const hit=e=>{for(const b of document.querySelectorAll('#pop .bub')){const r=b.getBoundingClientRect();if(e.clientX>=r.left-8&&e.clientX<=r.right+8&&e.clientY>=r.top-8&&e.clientY<=r.bottom+8)return b}return null};
+ disc.addEventListener('pointerdown',e=>{
+  if(S.busy)return;down=true;long=false;try{disc.setPointerCapture(e.pointerId)}catch(x){}
+  lp=setTimeout(()=>{long=true;mode=true;openPop()},500);
+ });
+ disc.addEventListener('pointermove',e=>{if(!mode||!S.pop)return;const b=hit(e);document.querySelectorAll('#pop .bub').forEach(x=>x.classList.toggle('on',x===b))});
+ disc.addEventListener('pointerup',e=>{
+  clearTimeout(lp);
+  if(S.busy&&!down){find();return}
+  if(S.busy&&down&&!long){}
+  if(long){const b=hit(e);mode=false;down=false;if(b)chooseTier(b.dataset.t);else document.querySelectorAll('#pop .bub').forEach(x=>x.classList.remove('on'));return}
+  if(down){down=false;find()}
+ });
+ disc.addEventListener('pointercancel',()=>{clearTimeout(lp);down=false;mode=false});
+ disc.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();find()}else if(e.key==='ArrowUp'){e.preventDefault();openPop()}});
+ disc.addEventListener('contextmenu',e=>e.preventDefault());
+ document.addEventListener('pointerdown',e=>{if(S.pop&&!e.target.closest('#pop')&&!e.target.closest('#disc'))closePop()},true);
+ $('#left').onclick=()=>{if(S.view){backToMap()}else{$('#search').classList.contains('hide')?openSearch():closeSearch()}};
+ $('#lang').onclick=()=>{S.lang=S.lang==='zh'?'en':'zh';try{localStorage.setItem('fan:lang',S.lang)}catch(e){}applyLang()};
+ $('#dim').onclick=()=>{if(S.view)backToMap()};
+ $('#go').onclick=doSearch;$('#q').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch()});
+ $('#myloc').onclick=()=>{S.moved=false;if(S.gps)flyTo(S.gps.lat,S.gps.lon,13,null);else locate();$('#res').innerHTML='';closeSearch()};
+ $('#done').onclick=closeSearch;
+ $('#ok').onclick=tear;$('#nx').onclick=nextOne;$('#retry').onclick=find;
+})();
+function applyLang(){
+ const l=L_();document.documentElement.lang=S.lang;document.title='翻翻 fanfan';
+ $('#lang').textContent=S.lang==='zh'?'中 · EN':'EN · 中';
+ $('#q').placeholder=l.ph;$('#go').textContent=l.go;$('#myloc').textContent='◎ '+l.myloc;$('#done').textContent=l.done;$('#fl').textContent=l.fl;$('#note').textContent=l.note;
+ $('#ok').textContent=l.ok;$('#nx').textContent=l.nx;$('#disc').setAttribute('aria-label',S.lang==='zh'?'发现':'Discover');
+ buildChips();refreshLeft();renderMsg();if(S.view)rerender();
+}
+zigStrings();applyTier();initMap();locate();applyLang();firstHint();
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
